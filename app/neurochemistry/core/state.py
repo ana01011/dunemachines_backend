@@ -1,422 +1,419 @@
 """
-Main neurochemical state management system
+Core neurochemical state implementation
+Implements the complete mathematical framework
 """
-from typing import Dict, Optional, List, Any
-import asyncio
-import yaml
-import time
-from datetime import datetime
+
 import numpy as np
-import logging
-from pathlib import Path
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+import math
+from app.neurochemistry.core.constants import *
 
-from .constants import Hormone, EventType
-from .event import Event
-from ..hormones import Dopamine, Cortisol, Adrenaline, Serotonin, Oxytocin
-from ..processors import EventProcessor, BaselineAdapter, StabilityController
-from ..learning import PatternRecognizer, ExpectationLearner
-
-logger = logging.getLogger(__name__)
-
+@dataclass
 class NeurochemicalState:
     """
-    Central manager for all neurochemical processes
+    Complete neurochemical state with dynamics
+    X(t) = [D(t), C(t), A(t), S(t), O(t)]ᵀ ∈ ℝ⁵
+    B(t) = [Dᵦ(t), Cᵦ(t), Aᵦ(t), Sᵦ(t), Oᵦ(t)]ᵀ ∈ ℝ⁵
     """
     
-    def __init__(self, user_id: str, config_path: str = None):
-        """
-        Initialize neurochemical state
-        
-        Args:
-            user_id: User identifier
-            config_path: Path to configuration file
-        """
-        self.user_id = user_id
-        
-        # Load configuration
-        if config_path is None:
-            config_path = Path(__file__).parent.parent.parent / 'config' / 'neurochemical_config.yaml'
-        
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)['neurochemistry']
-            
-        # Initialize hormones
-        self.hormones = {
-            'dopamine': Dopamine(self.config['hormones']['dopamine']),
-            'cortisol': Cortisol(self.config['hormones']['cortisol']),
-            'adrenaline': Adrenaline(self.config['hormones']['adrenaline']),
-            'serotonin': Serotonin(self.config['hormones']['serotonin']),
-            'oxytocin': Oxytocin(self.config['hormones']['oxytocin'])
-        }
-        
-        # Initialize processors
-        self.event_processor = EventProcessor(self)
-        self.baseline_adapter = BaselineAdapter(self)
-        self.stability_controller = StabilityController(self)
-        
-        # Initialize learning components
-        self.pattern_recognizer = PatternRecognizer(user_id)
-        self.expectation_learner = ExpectationLearner(user_id)
-        
-        # State tracking
-        self.last_update = time.time()
-        self.update_task = None
-        self.is_running = False
-        
-        # Metrics
-        self.total_events_processed = 0
-        self.total_updates = 0
-        self.start_time = datetime.now()
-        
-        # State history for analysis
-        self.state_history = []
-        self.max_history_size = 1000
-        
-        logger.info(f"Initialized neurochemical state for user {user_id}")
+    # Current hormone levels X(t)
+    dopamine: float = 50.0
+    cortisol: float = 30.0
+    adrenaline: float = 20.0
+    serotonin: float = 60.0
+    oxytocin: float = 40.0
     
-    async def start(self):
-        """Start the neurochemical update loop"""
-        if self.is_running:
-            logger.warning("Neurochemical state already running")
-            return
-            
-        self.is_running = True
-        self.update_task = asyncio.create_task(self._update_loop())
-        logger.info(f"Started neurochemical state for user {self.user_id}")
+    # Dynamic baselines B(t)
+    dopamine_baseline: float = 50.0
+    cortisol_baseline: float = 30.0
+    adrenaline_baseline: float = 20.0
+    serotonin_baseline: float = 60.0
+    oxytocin_baseline: float = 40.0
     
-    async def stop(self):
-        """Stop the neurochemical update loop"""
-        self.is_running = False
-        if self.update_task:
-            self.update_task.cancel()
-            try:
-                await self.update_task
-            except asyncio.CancelledError:
-                pass
-        logger.info(f"Stopped neurochemical state for user {self.user_id}")
+    # Spike history for wave analysis
+    dopamine_spikes: List[float] = field(default_factory=list)
+    cortisol_spikes: List[float] = field(default_factory=list)
     
-    async def _update_loop(self):
-        """Continuous state update loop"""
-        while self.is_running:
-            try:
-                dt = time.time() - self.last_update
-                
-                # Update all hormones
-                for hormone in self.hormones.values():
-                    hormone.update(dt, other_hormones=self.hormones)
-                
-                # Check and apply stability corrections
-                self.stability_controller.check_and_correct()
-                
-                # Adapt baselines if needed
-                if self.baseline_adapter.should_adapt():
-                    shifts = self.baseline_adapter.adapt_all()
-                    logger.debug(f"Baseline shifts: {shifts}")
-                
-                # Record state
-                self._record_state()
-                
-                self.last_update = time.time()
-                self.total_updates += 1
-                
-                # Sleep based on configuration
-                await asyncio.sleep(self.config['update_frequency'])
-                
-            except Exception as e:
-                logger.error(f"Error in update loop: {e}")
-                await asyncio.sleep(1.0)  # Brief pause before retry
+    # Learning parameters
+    expected_reward: float = 0.5
+    success_rate: float = 0.5
+    recent_outcomes: List[float] = field(default_factory=list)
     
-    async def process_event(self, event: Event) -> Dict[str, Any]:
+    # Adrenaline pool (depletion model)
+    adrenaline_pool: float = 100.0
+    
+    # Time tracking
+    last_update: float = 0.0
+    time: float = 0.0
+    
+    # Event history
+    event_history: List[Dict] = field(default_factory=list)
+    
+    def get_state_vector(self) -> np.ndarray:
+        """Get current state as vector X(t)"""
+        return np.array([
+            self.dopamine,
+            self.cortisol,
+            self.adrenaline,
+            self.serotonin,
+            self.oxytocin
+        ])
+    
+    def get_baseline_vector(self) -> np.ndarray:
+        """Get baseline vector B(t)"""
+        return np.array([
+            self.dopamine_baseline,
+            self.cortisol_baseline,
+            self.adrenaline_baseline,
+            self.serotonin_baseline,
+            self.oxytocin_baseline
+        ])
+    
+    def get_wave_amplitude(self) -> np.ndarray:
+        """Get wave amplitude W(t) = X(t) - B(t)"""
+        return self.get_state_vector() - self.get_baseline_vector()
+    
+    def calculate_interaction_matrix(self) -> np.ndarray:
         """
-        Process an event through the neurochemical system
-        
-        Args:
-            event: Event to process
-            
-        Returns:
-            Response dictionary with mood and behavioral changes
+        Build interaction matrix J for hormone cross-talk
+        J_ij represents influence of hormone j on hormone i
         """
-        # Learn from event
-        self.pattern_recognizer.observe(event)
+        J = np.zeros((5, 5))
         
-        # Process through hormones
-        hormone_responses = await self.event_processor.process(event)
+        # Dopamine row
+        J[0, 1] = -INTERACTION_MATRIX['beta_DC']  # Cortisol suppresses
+        J[0, 2] = INTERACTION_MATRIX['alpha_DA']   # Adrenaline boosts
+        J[0, 3] = -INTERACTION_MATRIX['delta_DS']  # Low serotonin suppresses
         
-        # Apply responses to hormones
-        dt = time.time() - self.last_update
-        for hormone_name, response in hormone_responses.items():
-            if hormone_name in self.hormones:
-                hormone = self.hormones[hormone_name]
-                # Apply response as a change
-                hormone.current_level += response
-                # Ensure bounds
-                hormone._apply_bounds()
+        # Cortisol row  
+        J[1, 0] = INTERACTION_MATRIX['gamma_CD']   # Dopamine baseline triggers
+        J[1, 2] = INTERACTION_MATRIX['alpha_CA']   # Adrenaline boosts
+        J[1, 3] = -INTERACTION_MATRIX['mu_CS']     # Serotonin suppresses
         
-        # Check stability after event
-        interventions = self.stability_controller.check_and_correct()
+        # Adrenaline row
+        J[2, 0] = INTERACTION_MATRIX['zeta_AD']    # Dopamine rate triggers
+        J[2, 1] = INTERACTION_MATRIX['xi_AC']      # Cortisol rate triggers
+        J[2, 3] = -INTERACTION_MATRIX['nu_AS']     # Serotonin suppresses
         
-        # Get current mood and behavior
-        mood = self.get_mood()
-        behavior = self.get_behavioral_parameters()
+        # Serotonin row
+        J[3, 0] = -INTERACTION_MATRIX['theta_SD']  # Low dopamine suppresses
+        J[3, 1] = -INTERACTION_MATRIX['sigma_SC']  # Cortisol suppresses
+        J[3, 2] = -INTERACTION_MATRIX['rho_SA']    # Adrenaline suppresses
+        J[3, 4] = INTERACTION_MATRIX['epsilon_SO'] # Oxytocin boosts
         
-        self.total_events_processed += 1
+        # Oxytocin row
+        J[4, 0] = INTERACTION_MATRIX['kappa_OD']   # Dopamine boosts
+        J[4, 3] = INTERACTION_MATRIX['lambda_OS']  # Serotonin boosts
         
-        response = {
-            'mood': mood,
-            'behavior': behavior,
-            'hormone_responses': hormone_responses,
-            'interventions': interventions,
-            'timestamp': datetime.now().isoformat()
-        }
+        return J
+    
+    def apply_dynamics(self, dt: float, event: Optional['Event'] = None):
+        """
+        Apply full dynamics equations
+        dX/dt = f(X, B, S, I) + η(t)
+        """
+        # Get current state
+        X = self.get_state_vector()
+        B = self.get_baseline_vector()
+        W = X - B
         
-        logger.info(f"Processed event {event.type} for user {self.user_id}")
+        # Build return-to-baseline matrix
+        Lambda = np.diag([
+            LAMBDA_DOPAMINE,
+            LAMBDA_CORTISOL,
+            LAMBDA_ADRENALINE,
+            LAMBDA_SEROTONIN,
+            LAMBDA_OXYTOCIN
+        ])
+        
+        # Calculate derivatives
+        dX_dt = -Lambda @ W  # Return to baseline term
+        
+        # Add interaction effects
+        J = self.calculate_interaction_matrix()
+        dX_dt += J @ X
+        
+        # Add event-driven changes if event provided
+        if event:
+            dX_dt += self.calculate_event_response(event)
+        
+        # Add noise (stochastic term)
+        noise = np.array([
+            np.random.normal(0, NOISE_AMPLITUDE['dopamine']),
+            np.random.normal(0, NOISE_AMPLITUDE['cortisol']),
+            np.random.normal(0, NOISE_AMPLITUDE['adrenaline']),
+            np.random.normal(0, NOISE_AMPLITUDE['serotonin']),
+            np.random.normal(0, NOISE_AMPLITUDE['oxytocin'])
+        ]) * np.sqrt(np.abs(W))  # Noise scales with distance from baseline
+        
+        dX_dt += noise
+        
+        # Update state (Euler integration)
+        X_new = X + dX_dt * dt
+        
+        # Apply constraints
+        X_new = np.clip(X_new, MIN_HORMONE, MAX_HORMONE)
+        
+        # Update adrenaline pool
+        self.update_adrenaline_pool(dt)
+        
+        # Limit adrenaline by available pool
+        X_new[2] = min(X_new[2], self.adrenaline_pool)
+        
+        # Update state
+        self.dopamine = X_new[0]
+        self.cortisol = X_new[1]
+        self.adrenaline = X_new[2]
+        self.serotonin = X_new[3]
+        self.oxytocin = X_new[4]
+        
+        # Update spike history
+        self.update_spike_history()
+        
+        # Adapt baselines
+        self.adapt_baselines(dt)
+        
+        # Update time
+        self.time += dt
+        self.last_update = self.time
+    
+    def calculate_event_response(self, event: 'Event') -> np.ndarray:
+        """Calculate hormone response to event"""
+        response = np.zeros(5)
+        
+        # Dopamine: reward and novelty
+        prediction_error = event.actual_reward - self.expected_reward
+        response[0] = (
+            REWARD_PREDICTION_GAIN * prediction_error +
+            event.novelty * 10 +
+            event.success_probability * 5
+        )
+        
+        # Cortisol: stress and uncertainty
+        response[1] = (
+            PREDICTION_ERROR_SENSITIVITY * abs(prediction_error) +
+            UNCERTAINTY_COEFFICIENT * event.uncertainty +
+            TIME_PRESSURE_COEFFICIENT * event.time_pressure +
+            event.complexity * 8
+        )
+        
+        # Adrenaline: urgency and novelty
+        response[2] = (
+            NOVELTY_RESPONSE * event.novelty * 10 +
+            event.urgency * 15 +
+            event.intensity * 5
+        )
+        
+        # Serotonin: success and consistency
+        self.recent_outcomes.append(event.success_probability)
+        if len(self.recent_outcomes) > PATTERN_WINDOW:
+            self.recent_outcomes.pop(0)
+        
+        consistency = 1.0 / (1.0 + np.var(self.recent_outcomes))
+        response[3] = (
+            SUCCESS_INTEGRATION * event.success_probability * 10 +
+            CONSISTENCY_BONUS * consistency * 5 -
+            FAILURE_PENALTY * (1 - event.success_probability) * 5
+        )
+        
+        # Oxytocin: social and emotional
+        response[4] = (
+            SOCIAL_BONDING_RATE * event.social_interaction * 10 +
+            EMPATHY_COEFFICIENT * event.emotional_content * 8 +
+            TRUST_BUILDING_RATE * event.trust_factor * 5
+        )
+        
         return response
     
-    def get_mood(self) -> Dict[str, Any]:
+    def update_spike_history(self):
+        """Track spike amplitudes for wave analysis"""
+        dopamine_wave = self.dopamine - self.dopamine_baseline
+        cortisol_wave = self.cortisol - self.cortisol_baseline
+        
+        self.dopamine_spikes.append(dopamine_wave)
+        self.cortisol_spikes.append(cortisol_wave)
+        
+        # Keep only recent spikes
+        if len(self.dopamine_spikes) > SPIKE_WINDOW:
+            self.dopamine_spikes.pop(0)
+        if len(self.cortisol_spikes) > SPIKE_WINDOW:
+            self.cortisol_spikes.pop(0)
+    
+    def adapt_baselines(self, dt: float):
         """
-        Get current mood based on neurochemical state
-        
-        Returns:
-            Mood dictionary
+        Adapt baselines based on spike patterns
+        Implements negative feedback for stability
         """
-        # Calculate composite mood metrics
-        dopamine = self.hormones['dopamine']
-        cortisol = self.hormones['cortisol']
-        adrenaline = self.hormones['adrenaline']
-        serotonin = self.hormones['serotonin']
-        oxytocin = self.hormones['oxytocin']
+        # Dopamine baseline adaptation
+        if len(self.dopamine_spikes) >= 3:
+            # Calculate trend in spike amplitudes
+            delta_spikes = np.diff(self.dopamine_spikes[-5:])
+            mu_delta = np.mean(delta_spikes) if len(delta_spikes) > 0 else 0
+            
+            if self.dopamine_baseline < DOPAMINE_CEILING:
+                # Below ceiling, can adapt up
+                d_baseline = DOPAMINE_ADAPTATION_UP * mu_delta * (1 - self.dopamine_baseline/100)
+            else:
+                # At/above ceiling, trigger cortisol and force down
+                self.cortisol += CORTISOL_TRIGGER_GAIN * (self.dopamine_baseline - DOPAMINE_CEILING)
+                if mu_delta > 0:
+                    d_baseline = -abs(DOPAMINE_ADAPTATION_DOWN * mu_delta) * (self.dopamine_baseline/100)
+                else:
+                    d_baseline = DOPAMINE_ADAPTATION_DOWN * mu_delta
+            
+            self.dopamine_baseline += d_baseline * dt
         
-        # Arousal (energy level)
-        arousal = (adrenaline.get_amplitude() / 50 + 
-                  abs(dopamine.get_amplitude()) / 100)
-        arousal = np.clip(arousal, -1, 1)
+        # Cortisol baseline regulation
+        d_cortisol_baseline = (
+            CORTISOL_BASELINE_DOPAMINE_RISE * max(0, self.dopamine_baseline - DOPAMINE_CEILING) -
+            CORTISOL_RELAXATION_RATE * (self.cortisol_baseline - 30)
+        )
         
-        # Valence (positive/negative emotion)
-        valence = (dopamine.get_amplitude() / 50 - 
-                  cortisol.get_amplitude() / 60 +
-                  serotonin.current_level / 100)
-        valence = np.clip(valence, -1, 1)
+        # Add chronic stress adaptation
+        if len(self.cortisol_spikes) > 0:
+            avg_stress = np.mean([abs(s) for s in self.cortisol_spikes])
+            d_cortisol_baseline += CHRONIC_STRESS_ADAPTATION * avg_stress
         
-        # Focus (attention level)
-        focus = 1.0 - abs(cortisol.current_level - 40) / 40
-        if cortisol.current_level > 60:  # High stress reduces focus
-            focus *= 0.7
-        focus = np.clip(focus, 0, 1)
+        self.cortisol_baseline += d_cortisol_baseline * dt
         
-        # Confidence
-        confidence = serotonin.get_confidence_modifier() if hasattr(serotonin, 'get_confidence_modifier') else 0.5
+        # Clamp all baselines
+        self.dopamine_baseline = np.clip(self.dopamine_baseline, MIN_BASELINE, MAX_BASELINE)
+        self.cortisol_baseline = np.clip(self.cortisol_baseline, MIN_BASELINE, MAX_BASELINE)
+        self.adrenaline_baseline = np.clip(self.adrenaline_baseline, MIN_BASELINE, MAX_BASELINE)
+        self.serotonin_baseline = np.clip(self.serotonin_baseline, MIN_BASELINE, MAX_BASELINE)
+        self.oxytocin_baseline = np.clip(self.oxytocin_baseline, MIN_BASELINE, MAX_BASELINE)
+    
+    def update_adrenaline_pool(self, dt: float):
+        """Update available adrenaline (depletion model)"""
+        # Regeneration
+        self.adrenaline_pool += ADRENALINE_REGEN_RATE * dt
         
-        # Social warmth
-        warmth = oxytocin.current_level / 60 if oxytocin.current_level > 30 else 0.3
-        warmth = np.clip(warmth, 0, 1)
+        # Usage
+        self.adrenaline_pool -= self.adrenaline * ADRENALINE_USAGE_RATE * dt
         
-        mood = {
-            'arousal': round(arousal, 3),
-            'valence': round(valence, 3),
-            'focus': round(focus, 3),
-            'confidence': round(confidence, 3),
-            'warmth': round(warmth, 3),
-            'description': self._get_mood_description(arousal, valence, focus),
-            'color_temp': self._valence_to_color(valence),
-            'energy_level': self._arousal_to_energy(arousal)
+        # Clamp
+        self.adrenaline_pool = np.clip(self.adrenaline_pool, 0, MAX_HORMONE)
+    
+    def apply_opponent_process(self, hormone: str, spike_amplitude: float):
+        """Apply opponent process after spike"""
+        if hormone == 'dopamine':
+            crash_level = self.dopamine_baseline - OPPONENT_PROCESS_STRENGTH * spike_amplitude
+            self.dopamine = max(MIN_HORMONE, crash_level)
+    
+    def get_effective_hormones(self) -> Dict[str, float]:
+        """Calculate effective hormone levels with interactions"""
+        # Effective dopamine
+        d_eff = self.dopamine * (1 - self.cortisol/200) * (1 + self.adrenaline/200) * (2 - self.serotonin/100)
+        
+        # Effective cortisol
+        c_eff = self.cortisol * (1 + max(0, 50 - self.dopamine_baseline)/50) * (1 + self.adrenaline/100) * (1 - self.serotonin/200)
+        
+        return {
+            'dopamine_effective': np.clip(d_eff, MIN_HORMONE, MAX_HORMONE),
+            'cortisol_effective': np.clip(c_eff, MIN_HORMONE, MAX_HORMONE),
+            'adrenaline': self.adrenaline,
+            'serotonin': self.serotonin,
+            'oxytocin': self.oxytocin
         }
+    
+    def calculate_lyapunov_function(self) -> float:
+        """
+        Calculate Lyapunov function V(X, B) for stability analysis
+        V(X, B) = Σᵢ [½(Xᵢ - Bᵢ)² + ¼Bᵢ²]
+        """
+        X = self.get_state_vector()
+        B = self.get_baseline_vector()
+        W = X - B
         
-        return mood
+        V = 0.5 * np.sum(W**2) + 0.25 * np.sum(B**2)
+        return V
+    
+    def check_stability(self) -> bool:
+        """Check if system is stable (eigenvalues of J < 1)"""
+        J = self.calculate_interaction_matrix()
+        eigenvalues = np.linalg.eigvals(J)
+        max_eigenvalue = np.max(np.abs(eigenvalues))
+        return max_eigenvalue < 1.0
     
     def get_behavioral_parameters(self) -> Dict[str, float]:
         """
-        Get behavioral parameters based on neurochemical state
-        
-        Returns:
-            Behavioral parameters dictionary
+        Map neurochemistry to behavioral parameters
         """
-        config = self.config['behavior']
-        
-        # Get hormone states
-        dopamine = self.hormones['dopamine']
-        cortisol = self.hormones['cortisol']
-        adrenaline = self.hormones['adrenaline']
-        serotonin = self.hormones['serotonin']
+        W = self.get_wave_amplitude()
         
         # Planning depth
-        planning_base = config['planning_depth']['base']
-        planning_depth = planning_base
-        
-        # Cortisol increases planning
-        if hasattr(cortisol, 'get_attention_multiplier'):
-            planning_depth *= cortisol.get_attention_multiplier()
-        else:
-            planning_depth *= (1 + cortisol.get_amplitude() / 100 * config['planning_depth']['cortisol_factor'])
-        
-        # Adrenaline decreases planning (urgency)
-        planning_depth *= (1 - adrenaline.get_amplitude() / 100 * config['planning_depth'].get('adrenaline_factor', 0.015))
-        
-        planning_depth = np.clip(planning_depth, 
-                                config['planning_depth']['min'], 
-                                config['planning_depth']['max'])
+        planning_depth_base = 5
+        planning_depth = planning_depth_base * (
+            (1 + W[1]/50) *  # Cortisol increases planning
+            (1 - max(0, W[2])/100) *  # High adrenaline reduces planning
+            (2 - self.serotonin/100)  # Low serotonin reduces planning
+        )
         
         # Risk tolerance
-        risk_base = config['risk_tolerance']['base']
-        risk_tolerance = risk_base
-        
-        # Dopamine increases risk tolerance
-        risk_tolerance += dopamine.get_amplitude() / 100 * config['risk_tolerance']['dopamine_factor']
-        
-        # Cortisol decreases risk tolerance
-        risk_tolerance += cortisol.get_amplitude() / 100 * config['risk_tolerance']['cortisol_factor']
-        
-        # Serotonin provides balanced risk taking
-        if serotonin.current_level > 50:
-            risk_tolerance += (serotonin.current_level - 50) / 50 * config['risk_tolerance']['serotonin_factor']
-        
-        risk_tolerance = np.clip(risk_tolerance,
-                                config['risk_tolerance']['min'],
-                                config['risk_tolerance']['max'])
+        risk_tolerance = (
+            0.5 +
+            0.3 * np.tanh(W[0]/20) -  # Dopamine increases risk
+            0.2 * np.tanh(W[1]/20)     # Cortisol reduces risk
+        )
         
         # Processing speed
-        speed_base = config['processing_speed']['base']
-        
-        # Get adrenaline performance modifiers
-        if hasattr(adrenaline, 'get_performance_modifiers'):
-            perf_mods = adrenaline.get_performance_modifiers()
-            processing_speed = speed_base * perf_mods['processing_speed']
-        else:
-            processing_speed = speed_base * (1 + adrenaline.get_amplitude() / 100 * config['processing_speed']['adrenaline_factor'])
-        
-        processing_speed = np.clip(processing_speed,
-                                  config['processing_speed']['min'],
-                                  config['processing_speed']['max'])
+        processing_speed = (
+            1 +
+            0.5 * self._sigmoid(W[2]/10) -  # Adrenaline increases speed
+            0.3 * self._sigmoid(W[1]/30)     # Cortisol reduces speed
+        )
         
         # Confidence
-        confidence_base = config['confidence']['base']
+        confidence = self._sigmoid(
+            self.serotonin/30 +
+            W[0]/40 -
+            abs(W[1])/50
+        )
         
-        # Get serotonin confidence modifier
-        if hasattr(serotonin, 'get_confidence_modifier'):
-            confidence = confidence_base * serotonin.get_confidence_modifier()
-        else:
-            confidence = confidence_base + serotonin.current_level / 100 * config['confidence']['serotonin_factor']
+        # Creativity
+        creativity = (
+            0.5 +
+            0.3 * np.tanh(W[0]/25) +  # Dopamine enhances
+            0.2 * np.tanh((self.serotonin - 50)/25) -  # Moderate serotonin helps
+            0.4 * np.tanh(W[1]/25)  # Cortisol suppresses
+        )
         
-        confidence = np.clip(confidence,
-                            config['confidence']['min'],
-                            config['confidence']['max'])
+        # Empathy
+        empathy = (
+            0.5 +
+            0.4 * np.tanh(self.oxytocin/25) +  # Oxytocin primary driver
+            0.1 * np.tanh(self.serotonin/50)   # Serotonin helps
+        )
         
-        parameters = {
-            'planning_depth': round(planning_depth, 1),
-            'risk_tolerance': round(risk_tolerance, 3),
-            'processing_speed': round(processing_speed, 3),
-            'confidence': round(confidence, 3),
-            'should_clarify': cortisol.should_request_clarification() if hasattr(cortisol, 'should_request_clarification') else False,
-            'should_help': oxytocin.should_offer_help(self.user_id) if hasattr(oxytocin, 'should_offer_help') else False
+        return {
+            'planning_depth': max(1, planning_depth),
+            'risk_tolerance': np.clip(risk_tolerance, 0, 1),
+            'processing_speed': max(0.1, processing_speed),
+            'confidence': np.clip(confidence, 0, 1),
+            'creativity': np.clip(creativity, 0, 1),
+            'empathy': np.clip(empathy, 0, 1),
+            'patience': np.clip(1 - W[2]/50, 0.1, 1),  # Inverse of adrenaline
+            'thoroughness': np.clip(1 + W[1]/50 - W[2]/50, 0.1, 2)  # Cortisol+ Adrenaline-
         }
-        
-        return parameters
     
-    def _get_mood_description(self, arousal: float, valence: float, focus: float) -> str:
-        """Generate natural language mood description"""
-        descriptions = []
-        
-        # Arousal description
-        if arousal > 0.5:
-            descriptions.append("energetic")
-        elif arousal < -0.5:
-            descriptions.append("tired")
-        else:
-            descriptions.append("calm")
-            
-        # Valence description
-        if valence > 0.5:
-            descriptions.append("positive")
-        elif valence < -0.5:
-            descriptions.append("stressed")
-        else:
-            descriptions.append("neutral")
-            
-        # Focus description
-        if focus > 0.7:
-            descriptions.append("focused")
-        elif focus < 0.3:
-            descriptions.append("scattered")
-            
-        return ", ".join(descriptions)
-    
-    def _valence_to_color(self, valence: float) -> str:
-        """Convert valence to color temperature"""
-        if valence > 0.5:
-            return "warm"  # Positive
-        elif valence < -0.5:
-            return "cool"  # Negative
-        else:
-            return "neutral"
-    
-    def _arousal_to_energy(self, arousal: float) -> str:
-        """Convert arousal to energy level description"""
-        if arousal > 0.5:
-            return "high"
-        elif arousal < -0.5:
-            return "low"
-        else:
-            return "moderate"
-    
-    def _record_state(self):
-        """Record current state for history"""
-        if len(self.state_history) >= self.max_history_size:
-            self.state_history.pop(0)
-            
-        state_record = {
-            'timestamp': datetime.now(),
-            'hormones': {
-                name: {
-                    'level': hormone.current_level,
-                    'baseline': hormone.baseline,
-                    'amplitude': hormone.get_amplitude()
-                }
-                for name, hormone in self.hormones.items()
-            },
-            'mood': self.get_mood(),
-            'stability': self.stability_controller.stability_score if hasattr(self.stability_controller, 'stability_score') else 1.0
-        }
-        
-        self.state_history.append(state_record)
-    
-    def get_state_summary(self) -> Dict[str, Any]:
-        """Get comprehensive state summary"""
-        summary = {
-            'user_id': self.user_id,
-            'timestamp': datetime.now().isoformat(),
-            'uptime': (datetime.now() - self.start_time).total_seconds(),
-            'total_events': self.total_events_processed,
-            'total_updates': self.total_updates,
-            'hormones': {},
-            'mood': self.get_mood(),
-            'behavior': self.get_behavioral_parameters(),
-            'stability': self.stability_controller.get_stability_report(),
-            'baselines': self.baseline_adapter.get_adaptation_summary(),
-            'learning': {
-                'patterns': self.pattern_recognizer.get_user_profile(),
-                'expectations': self.expectation_learner.get_learning_summary()
-            }
-        }
-        
-        # Add hormone summaries
-        for name, hormone in self.hormones.items():
-            summary['hormones'][name] = hormone.get_state_summary()
-            
-        return summary
-    
-    async def reset(self):
-        """Reset neurochemical state to baseline"""
-        logger.info(f"Resetting neurochemical state for user {self.user_id}")
-        
-        # Reset all hormones
-        for hormone in self.hormones.values():
-            hormone.reset()
-            
-        # Clear history
-        self.state_history.clear()
-        
-        # Reset counters
-        self.total_events_processed = 0
-        self.total_updates = 0
-        self.start_time = datetime.now()
-        
-        logger.info("Neurochemical state reset complete")
+    def _sigmoid(self, x: float) -> float:
+        """Sigmoid activation function"""
+        return 1 / (1 + np.exp(-x))
+
+@dataclass
+class Event:
+    """Event that affects neurochemical state"""
+    type: str
+    intensity: float = 0.5
+    complexity: float = 0.5
+    urgency: float = 0.5
+    emotional_content: float = 0.5
+    novelty: float = 0.5
+    success_probability: float = 0.5
+    social_interaction: float = 0.5
+    actual_reward: float = 0.5
+    uncertainty: float = 0.5
+    time_pressure: float = 0.5
+    trust_factor: float = 0.5

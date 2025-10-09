@@ -354,3 +354,15 @@ if __name__ == "__main__":
         workers=1,
         log_level="info"
     )
+
+# Add neurochemical WebSocket
+try:
+    from app.api.v1.routers import omnius_neuro_websocket
+    app.include_router(
+        omnius_neuro_websocket.router,
+        prefix="/api/v1", 
+        tags=["Neurochemical WebSocket"]
+    )
+    print("✅ Neurochemical WebSocket registered at /api/v1/ws/omnius")
+except ImportError as e:
+    print(f"⚠️ Neurochemical WebSocket not available: {e}")

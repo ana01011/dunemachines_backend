@@ -1,5 +1,8 @@
-"""Core neurochemical system components"""
-from .constants import Hormone, EventType
-from .state import NeurochemicalState
+"""
+Core neurochemistry module
+"""
 
-__all__ = ['Hormone', 'EventType', 'NeurochemicalState']
+from .state import NeurochemicalState, Event
+from .mood_mapper import MoodMapper
+
+__all__ = ['NeurochemicalState', 'Event', 'MoodMapper']
