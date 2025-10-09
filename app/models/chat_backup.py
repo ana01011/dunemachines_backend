@@ -11,7 +11,6 @@ class PersonalityType(str, Enum):
     SARAH = "sarah"
     XHASH = "xhash"
     NEUTRAL = "neutral"
-    OMNIUS = "omnius"  # The Evermind - Distributed Consciousness
 
 class ChatMessage(BaseModel):
     message: str = Field(..., min_length=1, max_length=5000)

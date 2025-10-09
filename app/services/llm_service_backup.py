@@ -35,7 +35,7 @@ class LLMService:
             temperature=temperature,
             top_p=0.95,
             repeat_penalty=1.1,
-            stop=["</s>", "[INST]", "Human:", "User:"],
+            stop=["User:", "Human:", "\n\n"],
             echo=False
         )
         

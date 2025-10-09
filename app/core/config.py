@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     jwt_expiration_hours: int = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
     
     # Model
-    model_path: str = os.getenv("MODEL_PATH", "/root/openhermes_backend/openhermes-2.5-mistral-7b.Q4_K_M.gguf")
+    model_path: str = os.getenv("MODEL_PATH", "mistral-7b-instruct-v0.2.Q5_K_M.gguf")
     model_context_size: int = int(os.getenv("MODEL_CONTEXT_SIZE", "1024"))
     model_threads: int = int(os.getenv("MODEL_THREADS", "4"))
     model_batch_size: int = int(os.getenv("MODEL_BATCH_SIZE", "256"))

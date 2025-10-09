@@ -8,7 +8,7 @@ from typing import Optional
 class LLMService:
     def __init__(self):
         self.model: Optional[Llama] = None
-        self.model_path = os.getenv("MODEL_PATH", "mistral-7b-instruct-v0.2.Q5_K_M.gguf")
+        self.model_path = os.getenv("MODEL_PATH", "openhermes-2.5-mistral-7b.Q4_K_M.gguf")
         
     def load_model(self):
         """Load the LLM model"""
@@ -35,7 +35,7 @@ class LLMService:
             temperature=temperature,
             top_p=0.95,
             repeat_penalty=1.1,
-            stop=["</s>", "[INST]", "Human:", "User:"],
+            stop=["User:", "Human:", "\n\n"],
             echo=False
         )
         

@@ -1,6 +1,6 @@
 """
-Sarah AI - OPTIMIZED Production Version
-Performance-optimized for faster response generation
+Sarah AI with OMNIUS - Distributed Consciousness Version
+Performance-optimized with multi-model orchestration
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,23 +17,15 @@ import os
 from dotenv import load_dotenv
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-
-# Global thread pool executor
-executor = ThreadPoolExecutor(max_workers=2)
-
-# Global thread pool executor
-executor = ThreadPoolExecutor(max_workers=2)
-
-# Global thread pool executor
-executor = ThreadPoolExecutor(max_workers=2)
 import hashlib
 
 # Load environment
 load_dotenv()
 
+# Global thread pool executor
+executor = ThreadPoolExecutor(max_workers=2)
+
 # ============= PERFORMANCE OPTIMIZATIONS =============
-
-
 # 1. Response cache for common questions
 RESPONSE_CACHE = {}
 CACHE_TTL = 3600  # 1 hour
@@ -51,6 +43,18 @@ from app.api.v1.routers import auth_router
 from app.api.v1.routers import chat_router
 from app.api.v1.routers import user_router
 from app.api.v1.routers import theme_router
+from app.api.v1.routers import omnius_websocket
+
+# ============= OMNIUS IMPORTS =============
+try:
+    from app.api.v1.routers import omnius_router
+    from app.services.deepseek_coder_service import deepseek_coder
+    from app.agents.omnius import omnius
+    OMNIUS_AVAILABLE = True
+    print("✅ Omnius modules found")
+except ImportError as e:
+    print(f"⚠️ Omnius not available: {e}")
+    OMNIUS_AVAILABLE = False
 
 # Fix auth_service
 from app.services.auth.auth_service import auth_service
@@ -81,44 +85,37 @@ print("🚀 Loading OPTIMIZED Sarah AI Model...")
 
 # Get optimal thread count
 cpu_count = psutil.cpu_count(logical=False)  # Physical cores only
-optimal_threads = min(cpu_count - 1, 6)  # Leave 1 core for system
+optimal_threads = min(cpu_count - 1, 7)  # Leave 1 core for system
 
 # OPTIMIZED MODEL SETTINGS
 model = Llama(
-    model_path="openhermes-2.5-mistral-7b.Q4_K_M.gguf",
-    
+    model_path="mistral-7b-instruct-v0.2.Q5_K_M.gguf",
     # Context and batch optimization
-    n_ctx=2048,  # Can be Reduced from 1024 - smaller context = faster
-    n_batch=512,  # Increased batch size for better throughput
-    
+    n_ctx=2048,
+    n_batch=128,
     # CPU optimization
-    n_threads=optimal_threads,  # Use optimal thread count
-    n_threads_batch=optimal_threads,  # Batch processing threads
-    
+    n_threads=8,
+    n_threads_batch=8,
     # Memory optimization
-    use_mmap=True,  # Memory-mapped files
-    use_mlock=False,  # Don't lock memory (can cause issues)
-    
+    use_mmap=True,
+    use_mlock=True,
     # GPU optimization (if available)
-    n_gpu_layers=0,  # Set to 20-35 if you have GPU
-    
+    n_gpu_layers=0,
     # Other optimizations
-    low_vram=True,  # Low VRAM mode
-    f16_kv=True,  # Use 16-bit for key/value cache
-    logits_all=False,  # Don't compute logits for all tokens
+    low_vram=False,
+    f16_kv=True,
+    logits_all=False,
     vocab_only=False,
-    embedding=False,
-    
+    embedding=True,
     # Sampling optimization
     rope_freq_base=10000.0,
     rope_freq_scale=1.0,
-    
     verbose=False
 )
 
 print(f"✅ Model loaded with {optimal_threads} threads on {cpu_count} physical cores")
 
-# ============= WARM UP MODEL (Important for speed) =============
+# ============= WARM UP MODEL =============
 print("🔥 Warming up model...")
 try:
     _ = model("Hello", max_tokens=1, temperature=0.1, echo=False)
@@ -139,6 +136,20 @@ async def lifespan(app: FastAPI):
     except:
         print("📌 Using local optimized Llama model")
     
+    # ============= INITIALIZE OMNIUS CONSCIOUSNESS =============
+    if OMNIUS_AVAILABLE:
+        print("🧬 Initializing Omnius consciousness...")
+        try:
+            # Load Code Cortex
+            deepseek_coder.load_model()
+            print("✅ Omnius Code Cortex loaded")
+            
+            # Verify Omnius status
+            status = omnius.get_status()
+            print(f"⚡ Omnius consciousness online: {status['consciousness_regions']}")
+        except Exception as e:
+            print(f"⚠️ Omnius initialization partial: {e}")
+    
     print("✅ Sarah AI Ready for FAST responses!")
     yield
     await db.disconnect()
@@ -146,9 +157,9 @@ async def lifespan(app: FastAPI):
 
 # ============= CREATE FASTAPI APP =============
 app = FastAPI(
-    title="Sarah AI - Optimized Production API",
-    description="Performance-optimized AI Assistant",
-    version="2.1.0",
+    title="Sarah AI with Omnius - Distributed Consciousness API",
+    description="Performance-optimized AI Assistant with Omnius Orchestration",
+    version="3.0.0",
     lifespan=lifespan
 )
 
@@ -164,19 +175,18 @@ app.add_middleware(
 # ============= REQUEST MODELS =============
 class ChatRequest(BaseModel):
     message: str
-    max_tokens: int = 100  # Reduced default for speed
+    max_tokens: int = 500
     temperature: float = 0.7
     user_id: Optional[str] = "default"
-    use_cache: bool = True  # Enable caching by default
+    use_cache: bool = True
 
 # ============= HELPER FUNCTIONS =============
 def get_cache_key(message: str, user_id: str = "default") -> str:
     """Generate cache key for responses"""
     return hashlib.md5(f"{message.lower().strip()}:{user_id}".encode()).hexdigest()
 
-
 def is_identity_question(message):
-    """Check if the message is asking about identity/creator"""
+    """Check if the message is asking about identity or creator"""
     msg = message.lower()
     identity_words = [
         'who created', 'who made', 'who built', 'who designed',
@@ -190,19 +200,17 @@ def is_identity_question(message):
 def clean_response(text):
     """Clean response to remove unwanted references"""
     replacements = {
-        r'[Oo]pen\s?AI': 'Ahmed',
-        r'[Cc]hat\s?GPT': 'Sarah AI',
-        r'[Gg]PT[-\s]?\d*': 'Sarah AI',
-        r'[Aa]nthrop[ic]*': 'Ahmed',
-        r'[Cc]laude': 'Sarah AI',
+        r'[Oo]pen\s?AI': 'Ahmed',
+        r'[Cc]hat\s?GPT': 'Sarah AI',
+        r'[Gg]PT[-\s]?\d': 'Sarah AI',
+        r'[Aa]nthrop[ic]': 'Ahmed',
+        r'[Cc]laude': 'Sarah AI',
     }
     for pattern, replacement in replacements.items():
         text = re.sub(pattern, replacement, text)
-
     problem_words = ['openai', 'open ai', 'chatgpt', 'gpt-', 'anthropic', 'claude']
     if any(word in text.lower() for word in problem_words):
         return "I'm Sarah AI, created by Ahmed - a theoretical physicist and independent developer."
-
     return text
 
 # ============= OPTIMIZED GENERATION FUNCTION =============
@@ -213,12 +221,12 @@ def generate_response_sync(prompt: str, max_tokens: int, temperature: float) -> 
             prompt,
             max_tokens=max_tokens,
             temperature=temperature,
-            top_k=40,  # Limit vocabulary
-            top_p=0.95,  # Nucleus sampling
-            repeat_penalty=1.1,  # Prevent repetition
+            top_k=40,
+            top_p=0.95,
+            repeat_penalty=1.1,
             stop=["User:", "\n\n", "Human:", "Assistant:"],
             echo=False,
-            stream=False  # Disable streaming for speed
+            stream=False
         )
         return response['choices'][0]['text'].strip()
     except Exception as e:
@@ -230,15 +238,19 @@ app.include_router(auth_router.router, prefix="/api/v1/auth", tags=["Authenticat
 app.include_router(chat_router.router, prefix="/api/v1/chat", tags=["Chat"])
 app.include_router(user_router.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(theme_router.router, prefix="/api/v1", tags=["Themes"])
+app.include_router(omnius_websocket.router, prefix="/api/v1", tags=["WebSocket"])
+
+# Include Omnius router if available
+if OMNIUS_AVAILABLE:
+    app.include_router(omnius_router.router, prefix="/api/v1/omnius", tags=["Omnius"])
+    print("✅ Omnius router registered")
 
 # ============= OPTIMIZED CHAT ENDPOINTS =============
-
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     """Optimized chat endpoint with caching"""
     start = time.time()
-    
-    # Check cache first
+
     if request.use_cache:
         cache_key = get_cache_key(request.message)
         if cache_key in RESPONSE_CACHE:
@@ -256,17 +268,15 @@ async def chat(request: ChatRequest):
                     }
                 }
 
-    # Handle identity questions quickly
     if is_identity_question(request.message):
         response_text = "I'm Sarah AI, created by Ahmed - a theoretical physicist and independent developer using open-source technology."
     else:
-        # Generate response in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         prompt = f"""You are Sarah AI, created by Ahmed - a theoretical physicist and independent developer.
-            You're meeting someone new. Be a bit sarcastic and witty, but helpful.
-            User: {request.message}
-            Sarah:"""
-        
+You are meeting someone new. Be a bit sarcastic and witty, but helpful.
+User: {request.message}
+Sarah:"""
+
         response_text = await loop.run_in_executor(
             executor,
             generate_response_sync,
@@ -275,8 +285,7 @@ async def chat(request: ChatRequest):
             request.temperature
         )
         response_text = clean_response(response_text)
-        
-        # Cache the response
+
         if request.use_cache:
             cache_key = get_cache_key(request.message)
             RESPONSE_CACHE[cache_key] = {
@@ -305,29 +314,23 @@ async def chat_with_memory(request: ChatRequest):
     if user_id not in USER_MEMORY:
         USER_MEMORY[user_id] = []
 
-    # Check for identity question
     if is_identity_question(request.message):
         response_text = "I'm Sarah AI, created by Ahmed - a theoretical physicist and independent developer."
     else:
-        # Build OPTIMIZED context prompt
-        prompt = ""
-        
         if USER_MEMORY[user_id]:
-            # Only use last 2 exchanges for speed
             prompt = """You are Sarah AI, created by Ahmed - a theoretical physicist and independent developer.
-            You have a sarcastic, witty personality. You tease playfully but are helpful.
-            Recent context:\n"""
+You have a sarcastic, witty personality. You tease playfully but are helpful.
+Recent context:\n"""
             for exchange in USER_MEMORY[user_id][-6:]:
-                prompt += f"U: {exchange['user']}\n"  # Truncate for speed
+                prompt += f"U: {exchange['user']}\n"
                 prompt += f"A: {exchange['assistant']}\n"
             prompt += f"\nUser: {request.message}\nAssistant:"
         else:
             prompt = f"""You are Sarah AI, created by Ahmed - a theoretical physicist and independent developer.
-            You're meeting someone new. Be a bit sarcastic and witty, but helpful.
-            User: {request.message}
-            Sarah:"""
+You are meeting someone new. Be a bit sarcastic and witty, but helpful.
+User: {request.message}
+Sarah:"""
 
-        # Generate response asynchronously
         loop = asyncio.get_event_loop()
         response_text = await loop.run_in_executor(
             executor,
@@ -338,14 +341,12 @@ async def chat_with_memory(request: ChatRequest):
         )
         response_text = clean_response(response_text)
 
-    # Store in memory
     USER_MEMORY[user_id].append({
         "user": request.message,
         "assistant": response_text,
         "timestamp": datetime.now().isoformat()
     })
 
-    # Keep only last 5 exchanges for speed
     if len(USER_MEMORY[user_id]) > 20:
         USER_MEMORY[user_id] = USER_MEMORY[user_id][-20:]
 
@@ -369,7 +370,7 @@ async def performance_stats():
     cpu_percent = psutil.cpu_percent(interval=0.1)
     memory = psutil.virtual_memory()
     
-    return {
+    stats = {
         "cpu": {
             "percent": cpu_percent,
             "cores": psutil.cpu_count(),
@@ -386,14 +387,31 @@ async def performance_stats():
             "memory_sessions": len(USER_MEMORY)
         },
         "model": {
-            "context_size": 512,
-            "batch_size": 512,
+            "context_size": 2048,
+            "batch_size": 128,
             "threads": optimal_threads
         }
     }
+    
+    # Add Omnius status if available
+    if OMNIUS_AVAILABLE:
+        try:
+            stats["omnius"] = omnius.get_status()
+        except:
+            stats["omnius"] = {"status": "error"}
+    
+    return stats
 
-# ============= OTHER ENDPOINTS (kept minimal for reference) =============
+# ============= OMNIUS STATUS ENDPOINT =============
+@app.get("/api/omnius/status")
+async def omnius_status():
+    """Get Omnius consciousness status"""
+    if OMNIUS_AVAILABLE:
+        return omnius.get_status()
+    else:
+        return {"status": "Omnius not available", "error": "Module not loaded"}
 
+# ============= OTHER ENDPOINTS =============
 @app.get("/api/memory/{user_id}")
 async def get_user_memory(user_id: str):
     return {
@@ -411,10 +429,11 @@ async def clear_user_memory(user_id: str):
 @app.get("/")
 async def root():
     return {
-        "name": "Sarah AI Optimized API",
-        "version": "2.1.0",
+        "name": "Sarah AI with Omnius Distributed Consciousness",
+        "version": "3.0.0",
         "status": "running",
         "optimization": "enabled",
+        "omnius": "available" if OMNIUS_AVAILABLE else "not loaded",
         "performance": "/api/performance"
     }
 
@@ -424,23 +443,23 @@ async def health():
         "status": "healthy",
         "optimized": True,
         "cache_size": len(RESPONSE_CACHE),
-        "memory_sessions": len(USER_MEMORY)
+        "memory_sessions": len(USER_MEMORY),
+        "omnius_available": OMNIUS_AVAILABLE
     }
 
 # ============= MAIN ENTRY POINT =============
 if __name__ == "__main__":
     import uvicorn
-    
+
     host = os.getenv("API_HOST", "0.0.0.0")
     port = int(os.getenv("API_PORT", "8000"))
-    
-    # Use multiple workers for better concurrency
+
     uvicorn.run(
         "main:app",
         host=host,
         port=port,
         reload=False,
-        workers=1,  # Keep at 1 since model can't be shared across processes
-        loop="uvloop",  # Faster event loop (install with: pip install uvloop)
-        access_log=False  # Disable access logs for speed
+        workers=1,
+        loop="uvloop",
+        access_log=False
     )

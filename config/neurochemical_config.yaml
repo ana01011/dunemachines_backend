@@ -1,0 +1,96 @@
+neurochemistry:
+  # Global settings
+  update_frequency: 0.5  # seconds
+  batch_save_interval: 5.0  # seconds
+  cache_ttl: 60  # seconds
+  
+  # Hormone configurations
+  hormones:
+    dopamine:
+      initial_level: 40
+      initial_baseline: 40
+      decay_rate: 0.1
+      sensitivity: 1.0
+      crash_factor: 0.4
+      tolerance_buildup: 0.01
+      
+    cortisol:
+      initial_level: 30
+      initial_baseline: 30
+      decay_rate: 0.15
+      sensitivity: 1.0
+      stress_threshold: 50
+      brake_threshold: 50
+      
+    adrenaline:
+      initial_level: 20
+      initial_baseline: 20
+      decay_rate: 0.3
+      depletion_rate: 0.1
+      max_pool: 100
+      regen_rate: 5.0
+      
+    serotonin:
+      initial_level: 50
+      initial_baseline: 50
+      decay_rate: 0.02
+      accumulation_rate: 0.05
+      stability_factor: 0.8
+      
+    oxytocin:
+      initial_level: 40
+      initial_baseline: 40
+      decay_rate: 0.05
+      bonding_rate: 0.1
+      social_decay: 0.03
+  
+  # Interaction matrix coefficients
+  interactions:
+    dopamine_cortisol: -0.02
+    cortisol_dopamine: 0.01
+    adrenaline_dopamine: 0.01
+    adrenaline_cortisol: 0.015
+    serotonin_all_damping: -0.005
+    oxytocin_serotonin: 0.01
+  
+  # Behavioral mapping parameters
+  behavior:
+    planning_depth:
+      base: 3
+      cortisol_factor: 0.02
+      dopamine_factor: -0.01
+      adrenaline_factor: -0.015
+      min: 1
+      max: 10
+      
+    risk_tolerance:
+      base: 0.5
+      dopamine_factor: 0.01
+      cortisol_factor: -0.008
+      serotonin_factor: 0.005
+      min: 0.1
+      max: 0.9
+      
+    processing_speed:
+      base: 1.0
+      adrenaline_factor: 0.02
+      cortisol_factor: -0.01
+      min: 0.5
+      max: 2.0
+      
+    confidence:
+      base: 0.5
+      serotonin_factor: 0.01
+      dopamine_factor: 0.005
+      cortisol_factor: -0.01
+      min: 0.2
+      max: 0.95
+  
+  # Stability parameters
+  stability:
+    max_change_per_update: 10
+    oscillation_damping: 0.7
+    extreme_threshold: 85
+    low_threshold: 15
+    baseline_shift_rate: 0.1
+    baseline_max_shift: 2.0
