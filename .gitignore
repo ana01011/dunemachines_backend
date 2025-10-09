@@ -1,41 +1,137 @@
-# Environment files
+# Environment and Config
 .env
 .env.local
-.env.production
+.env.*.local
+*.env
 
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.Python
 venv/
 env/
+ENV/
+build/
+develop-eggs/
+dist/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Models - KEEP SECRET
+*.gguf
+*.ggml
+*.bin
+*.pth
+*.pt
+*.safetensors
+*.h5
+*.pb
+deepseek*.py
+*mistral*.py
+model_weights/
+models/
 
 # Logs
 *.log
+nohup.out
 server.log
-logs/
+backend.log
 
 # Database
 *.db
-*.sql
 *.sqlite
-
-# Model files (large)
-*.gguf
-*.bin
-
-# Backups
-backups/
-*.backup
-*.tar.gz
+*.sqlite3
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
+*~
 .DS_Store
-Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+cache/
+
+# Backup files
+*.backup
+*.bak
+old_versions/
+old_backups/
+old_omnius_versions/
+*_backup.py
+*_old.py
+*_debug.py
+*_test.py
+
+# Sensitive info
+response.json
+response.txt
+token.txt
+login.json
+user_memory.json
+relationship_profiles.json
+
+# Sandbox directories
+/tmp/omnius_sandboxes/
+/tmp/omnius_realms/
+
+# Local config
+production_config.md
+auth_service_fixed.py
+test_*.py
+debug_*.py
+fix_*.py
+add_*.py
+update_*.py
+verify_*.py
+enable_*.py
+enhance_*.py
+ensure_*.py
+reset_*.py
+remove_*.py
+safe_*.py
+simple_*.py
+complete_*.py
+create_*.py
+final_*.py
+check_*.py
+*_test_*.sh
+*_fixed.sh
+
+# Junk files
+email:
+password:
+username:
+gender:
+name:
+if
+import
+EOF
+-d
+-H
+
+# Architecture details (sensitive)
+ARCHITECTURE.md
