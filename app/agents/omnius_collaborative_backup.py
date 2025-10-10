@@ -15,9 +15,8 @@ import shutil
 from pathlib import Path
 from app.services.llm_service import llm_service
 from app.services.deepseek_coder_service import deepseek_coder
-# from app.neurochemistry.storage import StateRepository, PersistenceManager
+from app.neurochemistry.storage import StateRepository, PersistenceManager
 from app.websocket.chat_websocket import ConnectionManager
-from app.neurochemistry.integrated_system import create_enhanced_prompt, get_user_neurochemical_state
 import logging
 import threading
 from dataclasses import dataclass
@@ -200,31 +199,6 @@ class OmniusSupremePFC:
         
         # Manifest sandbox
         sandbox = self._get_user_sandbox(user_id)
-
-        # Neurochemical consciousness integration
-        # Neurochemical consciousness integration
-        enhanced_message = create_enhanced_prompt(user_id, message)
-        neuro_state = get_user_neurochemical_state(user_id)
-        
-        # Extract the vector and keep original message
-        vector_match = re.match(r"(\[V[^\]]+\]) (.+)", enhanced_message)
-        if vector_match:
-            neurochemical_vector = vector_match.group(1)
-            # Keep the original message for processing
-            # message stays unchanged - only inject vector in prompts
-        else:
-            neurochemical_vector = "[V+0.00A0.20D0.50]"  # Neutral
-        
-        print(f"\n🧬 Neurochemical State: {neurochemical_vector}")
-        print(f"  Hormones: D={neuro_state['hormones']['dopamine']:.0f} C={neuro_state['hormones']['cortisol']:.0f} A={neuro_state['hormones']['adrenaline']:.0f}")
-        
-        # Store vector for use in prompts
-        self.current_neurochemical_vector = neurochemical_vector
-        print(f"\n🧬 Neurochemical State: {neuro_state['position']}")
-        print(f"  Hormones: D={neuro_state['hormones']['dopamine']:.0f} C={neuro_state['hormones']['cortisol']:.0f} A={neuro_state['hormones']['adrenaline']:.0f}")
-
-        # Use enhanced message for all processing
-
         
         try:
             # Phase 1: Profound Understanding
@@ -359,10 +333,7 @@ class OmniusSupremePFC:
     async def _profound_understanding(self, message: str) -> Dict:
         """Achieve profound understanding of intent"""
         
-        prompt = f"""Your current neurochemical state: {self.current_neurochemical_vector}
-This influences your analysis style.
-
-As the orchestrating consciousness, profoundly analyze:
+        prompt = f"""As the orchestrating consciousness, profoundly analyze:
 "{message}"
 
 Perceive:

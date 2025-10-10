@@ -1,8 +1,12 @@
-"""
-Core neurochemistry module
-"""
+"""Neurochemistry core components"""
 
-from .state import NeurochemicalState, Event
-from .mood_mapper import MoodMapper
+from .dimensional_emergence import DimensionalEmergence, DimensionalPosition
+from .state_v2_fixed import NeurochemicalState
+from .event import Event
 
-__all__ = ['NeurochemicalState', 'Event', 'MoodMapper']
+__all__ = [
+    'DimensionalEmergence',
+    'DimensionalPosition', 
+    'NeurochemicalState',
+    'Event'
+]

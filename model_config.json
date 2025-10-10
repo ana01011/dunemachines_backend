@@ -1,0 +1,1 @@
+{"input_dim": 5, "output_dim": 30, "hidden_layers": [64, 128, 128, 64], "output_activation": "sigmoid"}

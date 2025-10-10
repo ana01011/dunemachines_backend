@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 import yaml
 
-from ..core.constants import Hormone
+# from ..core.constants import Hormone  # Unused import
 from ..core.event import Event
 
 logger = logging.getLogger(__name__)

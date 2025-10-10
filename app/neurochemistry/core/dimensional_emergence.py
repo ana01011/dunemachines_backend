@@ -195,12 +195,10 @@ class DimensionalEmergence:
         return style
     
     @staticmethod
-    def create_prompt_injection(state) -> str:
-        """
-        Create the prompt that tells AI its position
-        NO EMOTION WORDS - just coordinates
-        """
-        pos = DimensionalEmergence.hormones_to_position(state)
+    @staticmethod
+    @staticmethod
+    def create_prompt_injection(pos: DimensionalPosition, state=None) -> str:
+        """Create the prompt injection string - ONLY the vector"""
         return f"[{pos.to_vector()}]"
     
     @staticmethod
