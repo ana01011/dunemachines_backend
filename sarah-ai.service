@@ -1,0 +1,61 @@
+[Unit]
+Description=Sarah AI Backend Service with Omnius
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/sarah-ai
+Environment="PATH=/opt/sarah-ai/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/opt/sarah-ai"
+Environment="PYTHONUNBUFFERED=1"
+
+# Main execution
+ExecStartPre=/opt/sarah-ai/venv/bin/python -c "import app.core.database; print('Database module OK')"
+ExecStart=/opt/sarah-ai/venv/bin/python main.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Performance optimization
+Nice=-20
+CPUSchedulingPolicy=rr
+CPUSchedulingPriority=99
+IOSchedulingClass=realtime
+IOSchedulingPriority=0
+
+# CPU affinity (adjust based on your server)
+# Uncomment and adjust cores as needed
+# CPUAffinity=4 5 6 7
+
+# Memory limits (adjust based on your server)
+# MemoryMax=8G
+# MemorySwapMax=2G
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/sarah-ai /var/log/sarah-ai
+
+# Logging
+StandardOutput=append:/var/log/sarah-ai/app.log
+StandardError=append:/var/log/sarah-ai/error.log
+
+# Kill settings
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
