@@ -1,8 +1,11 @@
 """
-Neurochemistry system for AI consciousness
+Neurochemistry V3: Advanced 7D Neurochemical System
+With minimization principle and biological realism
 """
 
-from .core.state import NeurochemicalState, Event
-from .core.mood_mapper import MoodMapper
+from .core.state import NeurochemicalState
+from .core.dynamics import NeurochemicalDynamics
+from .interface import NeurochemicalSystem
 
-__all__ = ['NeurochemicalState', 'Event', 'MoodMapper']
+__version__ = "3.0.0"
+__all__ = ["NeurochemicalState", "NeurochemicalDynamics", "NeurochemicalSystem"]
