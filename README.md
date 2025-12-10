@@ -1,6 +1,4 @@
-# Sarah AI Backend
-# Sarah AI Backend - OpenHermes Powered Chat System
-
+# DUNE Machines backend
 ## 🚀 Overview
 
 This is a sophisticated AI chat backend system built with FastAPI and powered by OpenHermes 2.5 Mistral 7B model. The system features multiple AI personalities (Sarah, Xhash, and Neutral) with advanced relationship-building capabilities, user memory, and context-aware responses.
