@@ -1,50 +1,20 @@
 """
-OMNIUS v2 - Multi-Brain Neural Router System
+Brain module - Neural routing and processing
 """
-
-from app.brain.neuron import (
-    LIFNeuron,
-    NeuronType,
-    Synapse,
-    create_neuron_layer
-)
-
-from app.brain.neural_router import (
-    NeuralRouter,
-    RouterConfig,
-    RouterOutput,
-    BrainRegionType,
-    create_neural_router
-)
-
-from app.brain.learning import (
-    HebbianLearner,
-    RewardSignal
-)
-
-from app.brain.hippocampus import (
-    Hippocampus,
-    MemoryRecord,
-    RetrievalResult,
-    create_hippocampus
-)
-
-__version__ = "2.0.0"
+from app.brain.thalamus import Thalamus, BrainArea, ThalamusOutput, create_thalamus
+from app.brain.brain_area import BrainArea as BrainAreaNN, AreaOutput, CodeArea, MathArea, MemoryArea
+from app.brain.learning import HebbianLearner, RewardSignal
 
 __all__ = [
-    "LIFNeuron",
-    "NeuronType", 
-    "Synapse",
-    "create_neuron_layer",
-    "NeuralRouter",
-    "RouterConfig",
-    "RouterOutput",
-    "BrainRegionType",
-    "create_neural_router",
+    "Thalamus",
+    "BrainArea", 
+    "ThalamusOutput",
+    "create_thalamus",
+    "BrainAreaNN",
+    "AreaOutput",
+    "CodeArea",
+    "MathArea", 
+    "MemoryArea",
     "HebbianLearner",
-    "RewardSignal",
-    "Hippocampus",
-    "MemoryRecord",
-    "RetrievalResult",
-    "create_hippocampus",
+    "RewardSignal"
 ]
