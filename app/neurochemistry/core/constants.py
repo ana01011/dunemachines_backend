@@ -61,3 +61,18 @@ INTERACTION_MATRIX = np.array([
     [0.2, -0.1, 0.1, 0.2, -0.1, 0.0, 0.0],
     [0.1, 0.1, -0.1, -0.1, 0.2, 0.0, 0.0],
 ])
+# Resting baseline values (what hormones return to during rest/sleep)
+BASELINE_REST = np.array([50.0, 50.0, 30.0, 20.0, 40.0, 40.0, 40.0])
+ 
+# Alias for HORMONE_NAMES (used in interface.py)
+HORMONES = HORMONE_NAMES
+
+ 
+# Receptor baseline values
+R_BASELINE = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+ 
+# Scalar cost constants (for numerical operations)
+K_COST_SCALAR = 0.2  # Used in minimization calculations
+ 
+# K_COST as array (for gradient calculations, indexed by hormone)
+K_COST_ARRAY = np.array([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2])
