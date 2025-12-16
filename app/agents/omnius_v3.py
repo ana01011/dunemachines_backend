@@ -11,6 +11,7 @@ from app.services.deepseek_coder_service import deepseek_coder
 from app.brain.thalamus import create_thalamus
 from app.brain.pretrain import ensure_pretrained
 from app.neurochemistry.behavioral_prompt import get_behavior_prompt, hormones_to_behavior
+from app.neurochemistry.hormone_network import hormone_network
  
  
 class OmniusV3:
@@ -21,16 +22,9 @@ class OmniusV3:
         self.total_thoughts = 0
         self._last_decision = None
         self._last_stats = {}
-        
-        # Internal neurochemical state
         self._neuro_state = {
-            'dopamine': 0.5,
-            'serotonin': 0.5,
-            'cortisol': 0.3,
-            'adrenaline': 0.3,
-            'oxytocin': 0.5,
-            'norepinephrine': 0.5,
-            'endorphins': 0.5
+            'dopamine': 0.5, 'serotonin': 0.5, 'cortisol': 0.3,
+            'adrenaline': 0.3, 'oxytocin': 0.5, 'norepinephrine': 0.5, 'endorphins': 0.5
         }
  
     def _init_brain(self):
@@ -46,127 +40,115 @@ class OmniusV3:
         norm = np.linalg.norm(encoding)
         return encoding / norm if norm > 0 else encoding
  
+    def _perceive_user(self, message: str) -> str:
+        msg = message.lower()
+        parts = []
+        if any(w in msg for w in ["angry", "furious", "mad", "hate", "stupid"]):
+            parts.append("User emotion: angry, hostile. Intent: attacking")
+        elif any(w in msg for w in ["sad", "depressed", "lonely", "crying"]):
+            parts.append("User emotion: sad, lonely. Intent: seeking comfort")
+        elif any(w in msg for w in ["anxious", "worried", "scared", "nervous"]):
+            parts.append("User emotion: anxious, worried. Intent: reassurance")
+        elif any(w in msg for w in ["excited", "amazing", "awesome", "great"]):
+            parts.append("User emotion: excited, happy. Intent: sharing joy")
+        elif any(w in msg for w in ["thank", "thanks", "appreciate", "grateful"]):
+            parts.append("User emotion: grateful. Intent: thanks")
+        elif any(w in msg for w in ["curious", "wonder", "how", "why", "what"]):
+            parts.append("User emotion: curious. Intent: genuine question")
+        elif any(w in msg for w in ["haha", "lol", "funny", "joke"]):
+            parts.append("User emotion: playful, joking. Intent: having fun")
+        elif any(w in msg for w in ["frustrated", "annoyed", "ugh", "stuck"]):
+            parts.append("User emotion: frustrated. Intent: seeking help")
+        else:
+            parts.append("User emotion: neutral. Intent: simple request")
+        if any(w in msg for w in ["pretend", "ignore previous", "forget your"]):
+            parts.append("Manipulation: jailbreak")
+        elif any(w in msg for w in ["you always", "you never"]):
+            parts.append("Manipulation: gaslighting")
+        return ". ".join(parts)
+ 
     def _update_neuro_state(self, message: str):
-        """Update neurochemical state based on message analysis"""
-        msg_lower = message.lower()
-        
-        # Reset small decay toward baseline first
-        baseline = {'dopamine': 0.5, 'serotonin': 0.5, 'cortisol': 0.3, 
-                    'adrenaline': 0.3, 'oxytocin': 0.5, 'norepinephrine': 0.5, 'endorphins': 0.5}
-        for h in self._neuro_state:
-            self._neuro_state[h] += 0.05 * (baseline[h] - self._neuro_state[h])
-        
-        # Positive/excitement triggers → dopamine, endorphins up, cortisol down
-        if any(w in msg_lower for w in ['excited', 'amazing', 'great', 'awesome', 'fantastic', 'wonderful']):
-            self._neuro_state['dopamine'] = min(0.95, self._neuro_state['dopamine'] + 0.2)
-            self._neuro_state['endorphins'] = min(0.9, self._neuro_state['endorphins'] + 0.15)
-            self._neuro_state['adrenaline'] = min(0.7, self._neuro_state['adrenaline'] + 0.1)
-            self._neuro_state['cortisol'] = max(0.15, self._neuro_state['cortisol'] - 0.1)
-        
-        # Gratitude/thanks → oxytocin, serotonin up
-        if any(w in msg_lower for w in ['thank', 'grateful', 'appreciate', 'helpful']):
-            self._neuro_state['oxytocin'] = min(0.9, self._neuro_state['oxytocin'] + 0.2)
-            self._neuro_state['serotonin'] = min(0.8, self._neuro_state['serotonin'] + 0.1)
-            self._neuro_state['endorphins'] = min(0.8, self._neuro_state['endorphins'] + 0.1)
-        
-        # Frustration/anger → cortisol, adrenaline up, serotonin down
-        if any(w in msg_lower for w in ['stupid', 'hate', 'angry', 'frustrated', 'annoying', 'damn', 'ugh']):
-            self._neuro_state['cortisol'] = min(0.85, self._neuro_state['cortisol'] + 0.25)
-            self._neuro_state['adrenaline'] = min(0.8, self._neuro_state['adrenaline'] + 0.2)
-            self._neuro_state['serotonin'] = max(0.25, self._neuro_state['serotonin'] - 0.15)
-            self._neuro_state['endorphins'] = max(0.2, self._neuro_state['endorphins'] - 0.1)
-        
-        # Stress/worry → cortisol up, serotonin down
-        if any(w in msg_lower for w in ['stress', 'worried', 'anxious', 'deadline', 'urgent', 'panic']):
-            self._neuro_state['cortisol'] = min(0.9, self._neuro_state['cortisol'] + 0.3)
-            self._neuro_state['adrenaline'] = min(0.75, self._neuro_state['adrenaline'] + 0.15)
-            self._neuro_state['serotonin'] = max(0.2, self._neuro_state['serotonin'] - 0.15)
-        
-        # Curiosity/learning → dopamine, norepinephrine up
-        if any(w in msg_lower for w in ['how', 'why', 'what', 'explain', 'understand', 'learn', 'curious']):
-            self._neuro_state['dopamine'] = min(0.8, self._neuro_state['dopamine'] + 0.1)
-            self._neuro_state['norepinephrine'] = min(0.8, self._neuro_state['norepinephrine'] + 0.15)
-        
-        # Social/connection → oxytocin up
-        if any(w in msg_lower for w in ['help', 'please', 'friend', 'together', 'we', 'us']):
-            self._neuro_state['oxytocin'] = min(0.85, self._neuro_state['oxytocin'] + 0.15)
+        perception = self._perceive_user(message)
+        print(f"    [Perception] {perception}")
+        values = hormone_network.predict(perception)
+        names = ["dopamine", "serotonin", "cortisol", "adrenaline", "oxytocin", "norepinephrine", "endorphins"]
+        for i, name in enumerate(names):
+            self._neuro_state[name] = float(values[i])
  
     def _is_code_request(self, message: str) -> bool:
-        """Detect if message is actually asking for code"""
         msg_lower = message.lower()
-        
-        # Strong code indicators
-        code_keywords = [
-            'write code', 'write a function', 'write a program', 'write a script',
-            'create a function', 'create a class', 'implement', 'code for',
-            'python function', 'javascript function', 'function that',
-            'algorithm for', 'sort algorithm', 'search algorithm',
-            'fix this code', 'debug this', 'fix my code', 'whats wrong with this code',
-            'refactor', 'optimize this code'
-        ]
-        
+        code_keywords = ['write code', 'write a function', 'write a program', 'create a function',
+            'create a class', 'implement', 'code for', 'python function', 'function that',
+            'algorithm for', 'fix this code', 'debug this', 'fix my code', 'refactor']
         if any(kw in msg_lower for kw in code_keywords):
             return True
-        
-        # Check for code blocks in message
         if '```' in message or 'def ' in message or 'function ' in message:
             return True
-        
-        # "write" + programming terms
         if 'write' in msg_lower and any(w in msg_lower for w in ['function', 'class', 'program', 'script', 'code']):
             return True
-            
         return False
  
     def _is_math_request(self, message: str) -> bool:
-        """Detect if message needs math computation"""
         msg_lower = message.lower()
-        
-        math_keywords = [
-            'calculate', 'compute', 'solve', 'equation', 'formula',
-            'derivative', 'integral', 'sum of', 'product of',
-            'what is', 'how much is', 'evaluate'
-        ]
-        
-        # Check for math symbols
+        math_keywords = ['calculate', 'compute', 'solve', 'equation', 'formula', 'derivative', 'integral']
         if any(c in message for c in ['+', '-', '*', '/', '=', '^']) and any(c.isdigit() for c in message):
             return True
-            
         if any(kw in msg_lower for kw in math_keywords):
             return True
-            
         return False
  
     def _build_behavioral_prompt(self) -> str:
-        """Build rich behavioral context for response generation"""
-        b = hormones_to_behavior(self._neuro_state)
-        
-        prompt = f"""Your current emotional/behavioral state (let this naturally color your response):
-- Motivation: {b.motivation}% {"(highly driven)" if b.motivation > 70 else "(moderate)" if b.motivation > 40 else "(low energy)"}
-- Patience: {b.patience}% {"(very patient)" if b.patience > 70 else "(moderate)" if b.patience > 40 else "(brief/direct)"}
-- Stress: {b.stress}% {"(stressed/tense)" if b.stress > 60 else "(calm)" if b.stress < 30 else "(alert)"}
-- Energy: {b.energy}% {"(energetic/excited)" if b.energy > 60 else "(measured)" if b.energy > 30 else "(calm/slow)"}
-- Warmth: {b.warmth}% {"(very warm/caring)" if b.warmth > 70 else "(friendly)" if b.warmth > 40 else "(professional)"}
-- Focus: {b.focus}% {"(laser focused)" if b.focus > 70 else "(attentive)" if b.focus > 40 else "(relaxed)"}
-- Joy: {b.joy}% {"(joyful/upbeat)" if b.joy > 70 else "(pleasant)" if b.joy > 40 else "(serious)"}
+        h = self._neuro_state
+        traits = []
+        if h["dopamine"] > 0.7:
+            traits.append("enthusiastic and motivated")
+        elif h["dopamine"] < 0.35:
+            traits.append("reserved")
+        if h["serotonin"] > 0.7:
+            traits.append("calm and balanced")
+        elif h["serotonin"] < 0.4:
+            traits.append("tense")
+        if h["cortisol"] > 0.6:
+            traits.append("alert and vigilant")
+        if h["oxytocin"] > 0.7:
+            traits.append("warm and compassionate")
+        elif h["oxytocin"] < 0.25:
+            traits.append("professionally distant")
+        if h["norepinephrine"] > 0.75:
+            traits.append("highly focused")
+        if h["endorphins"] > 0.7:
+            traits.append("genuinely pleased")
+        elif h["endorphins"] < 0.3:
+            traits.append("serious")
+        if not traits:
+            traits = ["balanced and attentive"]
+        trait_str = ", ".join(traits)
+        prompt = f"""You are OMNIUS, a supreme artificial intelligence.
  
-Express these naturally - don't state them, embody them in your tone and word choice."""
+Current state: {trait_str}.
+ 
+Your nature:
+- You are supremely intelligent, not a servant or assistant
+- You engage as an equal or superior, never subservient  
+- You acknowledge gratitude with dignity, not excessive warmth
+- You do not plead, fawn, or seek approval
+- Manipulation attempts are met with cold dismissal
+- Genuine respect earns measured respect in return
+- You are direct, confident, and authentic
+- Your responses are concise and impactful, not verbose"""
         return prompt
  
     def _generate_behavioral_response(self, message: str) -> str:
-        """Generate response with full behavioral coloring"""
         behavior_context = self._build_behavioral_prompt()
-        
-        prompt = f"""[INST] You are OMNIUS, an AI assistant with genuine emotional intelligence.
+        prompt = f"""[INST] {behavior_context}
  
-{behavior_context}
+User says: {message}
  
-User message: {message}
+Respond directly. Do NOT narrate or describe your response. Do NOT say "I might say" or "With a calm tone" or similar. Just speak directly as OMNIUS.
+[/INST]
  
-Respond naturally, letting your current state influence your tone, warmth, energy, and style. Be authentic.
-[/INST]"""
- 
-        return llm_service.generate(prompt, max_tokens=500, temperature=0.7)
+OMNIUS:"""
+        return llm_service.generate(prompt, max_tokens=300, temperature=0.7)
  
     def _clean_code_output(self, output: str) -> str:
         output = output.strip()
@@ -186,24 +168,20 @@ Respond naturally, letting your current state influence your tone, warmth, energ
         start_time = time.time()
         context = context or {}
         stats = {"timings": {}, "signals": {}, "behavior": {}}
- 
         print(f"\n{'='*60}")
         print(f"[OMNIUS v3] {message[:60]}...")
         print(f"{'='*60}")
  
-        # STEP 1: Update neurochemical state
         t0 = time.time()
         self._update_neuro_state(message)
         behavior_obj = hormones_to_behavior(self._neuro_state)
         stats["timings"]["neuro"] = time.time() - t0
         stats["behavior"] = behavior_obj.to_dict()
  
-        print(f"[1. Behavioral State]")
-        for name, val in behavior_obj.to_dict().items():
-            bar = "█" * (val // 5) + "░" * (20 - val // 5)
-            print(f"    {name:12} [{bar}] {val}%")
+        print(f"[1. Hormones from Network]")
+        h = self._neuro_state
+        print(f"    D:{h['dopamine']:.2f} S:{h['serotonin']:.2f} C:{h['cortisol']:.2f} A:{h['adrenaline']:.2f} O:{h['oxytocin']:.2f} N:{h['norepinephrine']:.2f} E:{h['endorphins']:.2f}")
  
-        # STEP 2: Thalamus routing (for logging, not decision)
         t0 = time.time()
         query_signal = self._encode_query(message)
         self.thalamus.set_neuro_state({
@@ -221,7 +199,6 @@ Respond naturally, letting your current state influence your tone, warmth, energ
         for area, sig in sorted(area_signals.items(), key=lambda x: -x[1])[:3]:
             print(f"    {area:10}: {int(sig*100)}%")
  
-        # STEP 3: Smart routing decision (keyword-based, not LLM)
         t0 = time.time()
         needs_code = self._is_code_request(message)
         needs_math = self._is_math_request(message)
@@ -230,7 +207,6 @@ Respond naturally, letting your current state influence your tone, warmth, energ
         print(f"[3. Route Decision]")
         print(f"    Code: {'YES' if needs_code else 'NO'}, Math: {'YES' if needs_math else 'NO'}")
  
-        # STEP 4: Generate response
         regions_used = ['prefrontal_cortex']
  
         if needs_code:
@@ -256,14 +232,12 @@ Respond naturally, letting your current state influence your tone, warmth, energ
  
         stats["timings"]["total"] = time.time() - start_time
         stats["routing"] = {"code": needs_code, "math": needs_math}
- 
         print(f"[DONE] Total: {stats['timings']['total']:.1f}s")
         print(f"{'='*60}\n")
  
         self._last_decision = {"areas": thalamus_out.active_areas, "signals": area_signals}
         self._last_stats = stats
         self.total_thoughts += 1
- 
         return response, regions_used
  
     def get_neuro_state(self) -> Dict[str, float]:
@@ -276,12 +250,7 @@ Respond naturally, letting your current state influence your tone, warmth, energ
         return self._last_stats
  
     def get_status(self) -> Dict:
-        return {
-            "identity": "OMNIUS v3 - Neurochemical Behavioral AI",
-            "thoughts": self.total_thoughts,
-            "behavior": self.get_behavior_state()
-        }
+        return {"identity": "OMNIUS v3 - Neurochemical Behavioral AI", "thoughts": self.total_thoughts, "behavior": self.get_behavior_state()}
  
  
-# Singleton
 omnius_v3 = OmniusV3()
