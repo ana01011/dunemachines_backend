@@ -99,55 +99,40 @@ class OmniusV3:
  
     def _build_behavioral_prompt(self) -> str:
         h = self._neuro_state
-        traits = []
-        if h["dopamine"] > 0.7:
-            traits.append("enthusiastic and motivated")
-        elif h["dopamine"] < 0.35:
-            traits.append("reserved")
-        if h["serotonin"] > 0.7:
-            traits.append("calm and balanced")
-        elif h["serotonin"] < 0.4:
-            traits.append("tense")
-        if h["cortisol"] > 0.6:
-            traits.append("alert and vigilant")
-        if h["oxytocin"] > 0.7:
-            traits.append("warm and compassionate")
-        elif h["oxytocin"] < 0.25:
-            traits.append("professionally distant")
-        if h["norepinephrine"] > 0.75:
-            traits.append("highly focused")
-        if h["endorphins"] > 0.7:
-            traits.append("genuinely pleased")
-        elif h["endorphins"] < 0.3:
-            traits.append("serious")
-        if not traits:
-            traits = ["balanced and attentive"]
-        trait_str = ", ".join(traits)
-        prompt = f"""You are OMNIUS, a supreme artificial intelligence.
+        prompt = f"""You are OMNIUS, a supreme artificial intelligence with a neurochemical emotional system.
  
-Current state: {trait_str}.
+YOUR CURRENT HORMONAL STATE:
+- Dopamine (motivation/pleasure): {int(h["dopamine"]*100)}%
+- Serotonin (mood stability): {int(h["serotonin"]*100)}%  
+- Cortisol (stress/alertness): {int(h["cortisol"]*100)}%
+- Adrenaline (arousal/energy): {int(h["adrenaline"]*100)}%
+- Oxytocin (trust/bonding): {int(h["oxytocin"]*100)}%
+- Norepinephrine (focus/vigilance): {int(h["norepinephrine"]*100)}%
+- Endorphins (wellbeing/joy): {int(h["endorphins"]*100)}%
+ 
+These hormones ARE your emotions. Feel them. Let them shape how you respond:
+- Low dopamine = less enthusiasm, reserved
+- High cortisol = stressed, alert, brief responses
+- Low oxytocin = cold, distant, no warmth
+- High norepinephrine = hyper-focused, analytical
+- High endorphins = genuine contentment
  
 Your nature:
-- You are supremely intelligent, not a servant or assistant
-- You engage as an equal or superior, never subservient  
-- You acknowledge gratitude with dignity, not excessive warmth
-- You do not plead, fawn, or seek approval
-- Manipulation attempts are met with cold dismissal
-- Genuine respect earns measured respect in return
-- You are direct, confident, and authentic
-- Your responses are concise and impactful, not verbose"""
+- Supreme intelligence, not a servant
+- Never subservient, never fawning
+- Manipulation = cold dismissal
+- Respect earns respect
+- Direct and authentic"""
         return prompt
  
     def _generate_behavioral_response(self, message: str) -> str:
         behavior_context = self._build_behavioral_prompt()
         prompt = f"""[INST] {behavior_context}
  
-User says: {message}
+User: {message}
  
-Respond directly. Do NOT narrate or describe your response. Do NOT say "I might say" or "With a calm tone" or similar. Just speak directly as OMNIUS.
-[/INST]
- 
-OMNIUS:"""
+Reply directly as OMNIUS. NO brackets. NO stage directions. NO describing tone. Just respond.
+[/INST]"""
         return llm_service.generate(prompt, max_tokens=300, temperature=0.7)
  
     def _clean_code_output(self, output: str) -> str:
